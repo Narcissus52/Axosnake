@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Snake Game</title>
+    <link href="https://fonts.googleapis.com/css?family=Antic+Slab" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+
+    <style>
+      @font-face {
+        font-family: 'Minecraft';
+        src: url('https://cdn.jsdelivr.net/gh/South-Paw/typeface-minecraft@master/fonts/minecraft.woff2') format('woff2'),
+             url('https://cdn.jsdelivr.net/gh/South-Paw/typeface-minecraft@master/fonts/minecraft.woff') format('woff');
+        font-weight: normal;
+        font-style: normal;
+      }
+
+      body {
+        background-color: #000000; /* Dark gray background */
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        color: white; /* Make text white for better contrast */
+      }
+
+      h1 {
+        font-family: 'Minecraft', 'Press Start 2P', cursive;
+        color: #44891A; /* Minecraft green color */
+        text-shadow: 2px 2px #3F3F3F; /* Add some shadow for depth */
+        font-size: 36px;
+        margin-top: 20px;
+        text-transform: uppercase;
+      }
+
+      #gameCanvas {
+        border: 5px solid rgb(159, 104, 177);
+        background-color: lightskyblue;
+      }
+
+      #score {
+        font-size: 52px;
+        font-family: 'Antic Slab', serif;
+        color: #FF4500; /* Changed to a brighter color for better visibility */
+        margin-top: 10px;
+        margin-bottom: 20px;
+        font-weight: bold;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>AXOSNAKE</h1>
+    <div id="score">0</div>
+    <canvas id="gameCanvas" width="500" height="400"></canvas>
+
+    <script>
+      const GAME_SPEED = 100;
+      const CANVAS_BORDER_COLOUR = 'Red';
+      const CANVAS_BACKGROUND_COLOUR = "lightblue";
+      const SNAKE_COLOUR = 'pink';
+      const SNAKE_BORDER_COLOUR = 'darkpink';
+      const FOOD_COLOUR = 'gold';
+      const FOOD_BORDER_COLOUR = 'black';
+      const GILL_COLOUR = 'red';
+      const FEET_COLOUR = 'pink';
+
+      let snake = [
+        {x: 150, y: 150},
+        {x: 140, y: 150},
+        {x: 130, y: 150},
+      ]
+
+      // The user's score
+      let score = 0;
+      // When set to true the snake is changing direction
+      let changingDirection = false;
+      // Food x-coordinate
+      let foodX;
+      // Food y-coordinate
+      let foodY;
+      // Horizontal velocity
+      let dx = 10;
+      // Vertical velocity
+      let dy = 0;
+
+      // Get the canvas element
+      const gameCanvas = document.getElementById("gameCanvas");
+      // Return a two dimensional drawing context
+      const ctx = gameCanvas.getContext("2d");
+
+      // Define an array of food items
+      let foodItems = [];
+      const NUM_FOOD_ITEMS = 3; // Number of food items on the canvas at once
+
+      // Define an array of possible food colors
+      const FOOD_COLORS = ['red', 'green', 'blue', 'yellow', 'orange', 'purple'];
+
+      let gameActive = true;
+
+      /**
+       * Main function of the game
+       * called repeatedly to advance the game
+       */
+      function main() {
+        if (didGameEnd()) {
+          gameActive = false;
+          // Display game over message
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+          ctx.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
+          ctx.fillStyle = 'darkred';
+          ctx.font = '30px Minecraft';
+          ctx.fillText('GAME OVER', gameCanvas.width / 2 - 70, gameCanvas.height / 2);
+          return;
+        }
+
+        setTimeout(function onTick() {
+          changingDirection = false;
+          clearCanvas();
+          drawFood();
+          advanceSnake();
+          drawSnake();
+
+          // Call game again only if the game is active
+          if (gameActive) {
+            main();
+          }
+        }, GAME_SPEED)
+      }
+
+      /**
+       * Change the background colour of the canvas to CANVAS_BACKGROUND_COLOUR and
+       * draw a border around it
+       */
+      function clearCanvas() {
+        //  Select the colour to fill the drawing
+        ctx.fillStyle = CANVAS_BACKGROUND_COLOUR;
+        //  Select the colour for the border of the canvas
+        ctx.strokestyle = CANVAS_BORDER_COLOUR;
+
+        // Draw a "filled" rectangle to cover the entire canvas
+        ctx.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
+        // Draw a "border" around the entire canvas
+        ctx.strokeRect(0, 0, gameCanvas.width, gameCanvas.height);
+      }
+
+      /**
+       * Draw the food on the canvas
+       */
+      function drawFood() {
+        foodItems.forEach(food => {
+          ctx.fillStyle = food.color;
+          ctx.beginPath();
+          ctx.arc(food.x + 5, food.y + 5, 5, 0, 2 * Math.PI);
+          ctx.fill();
+        });
+      }
+
+      /**
+       * Advances the snake by changing the x-coordinates of its parts
+       * according to the horizontal velocity and the y-coordinates of its parts
+       * according to the vertical velocity
+       */
+      function advanceSnake() {
+        // Create the new Snake's head
+        const head = {x: snake[0].x + dx, y: snake[0].y + dy};
+        // Add the new head to the beginning of snake body
+        snake.unshift(head);
+
+        const foodIndex = foodItems.findIndex(food => food.x === snake[0].x && food.y === snake[0].y);
+        if (foodIndex !== -1) {
+          // Increase score
+          score += 10;
+          // Display score on screen
+          document.getElementById('score').innerHTML = score;
+
+          // Remove eaten food
+          foodItems.splice(foodIndex, 1);
+
+          // Generate new food location
+          createFood();
+        } else {
+          // Remove the last part of snake body
+          snake.pop();
+        }
+      }
+
+      /**
+       * Returns true if the head of the snake touched another part of the game
+       * or any of the walls
+       */
+      function didGameEnd() {
+        for (let i = 4; i < snake.length; i++) {
+          if (snake[i].x === snake[0].x && snake[i].y === snake[0].y) return true
+        }
+
+        const hitLeftWall = snake[0].x < 0;
+        const hitRightWall = snake[0].x > gameCanvas.width - 10;
+        const hitTopWall = snake[0].y < 0;
+        const hitBottomWall = snake[0].y > gameCanvas.height - 10;
+
+        return hitLeftWall || hitRightWall || hitTopWall || hitBottomWall
+      }
+
+      /**
+       * Generates a random number that is a multiple of 10 given a minumum
+       * and a maximum number
+       * @param { number } min - The minimum number the random number can be
+       * @param { number } max - The maximum number the random number can be
+       */
+      function randomTen(min, max) {
+        return Math.round((Math.random() * (max-min) + min) / 10) * 10;
+      }
+
+      /**
+       * Creates random set of coordinates for the snake food.
+       */
+      function createFood() {
+        while (foodItems.length < NUM_FOOD_ITEMS) {
+          // Generate random coordinates
+          const foodX = randomTen(0, gameCanvas.width - 10);
+          const foodY = randomTen(0, gameCanvas.height - 10);
+          
+          // Generate a random color
+          const foodColor = FOOD_COLORS[Math.floor(Math.random() * FOOD_COLORS.length)];
+
+          // Check if the new food location is where the snake currently is
+          const foodOnSnake = snake.some(part => part.x === foodX && part.y === foodY);
+          
+          // Check if the new food location overlaps with existing food items
+          const foodOverlap = foodItems.some(item => item.x === foodX && item.y === foodY);
+
+          if (!foodOnSnake && !foodOverlap) {
+            foodItems.push({ x: foodX, y: foodY, color: foodColor });
+          }
+        }
+        
+      }
+
+      /**
+       * Draws the snake on the canvas
+       */
+      function drawSnake() {
+        // loop through the snake parts drawing each part on the canvas
+        snake.forEach((part, index) => drawSnakePart(part, index, snake.length));
+      }
+
+      /**
+       * Draws a part of the snake on the canvas
+       * @param { object } snakePart - The coordinates where the part should be drawn
+       */
+      function drawSnakePart(snakePart, index, totalParts) {
+        // Set the colour of the snake part
+        ctx.fillStyle = SNAKE_COLOUR;
+        ctx.strokeStyle = SNAKE_BORDER_COLOUR;
+
+        // Draw the main body
+        ctx.beginPath();
+        ctx.ellipse(snakePart.x + 5, snakePart.y + 5, 6, 5, 0, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.stroke();
+
+        // Draw eyes for the head
+        if (index === 0) {
+          ctx.fillStyle = 'black';
+          ctx.beginPath();
+          ctx.arc(snakePart.x + 3, snakePart.y + 3, 1, 0, 2 * Math.PI);
+          ctx.arc(snakePart.x + 7, snakePart.y + 3, 1, 0, 2 * Math.PI);
+          ctx.fill();
+        }
+
+        // Draw gills (every 3rd part to avoid overcrowding)
+        if (index % 3 === 0) {
+          ctx.fillStyle = GILL_COLOUR;
+          ctx.beginPath();
+          ctx.moveTo(snakePart.x, snakePart.y + 2);
+          ctx.lineTo(snakePart.x - 3, snakePart.y);
+          ctx.lineTo(snakePart.x - 3, snakePart.y + 4);
+          ctx.closePath();
+          ctx.fill();
+
+          ctx.beginPath();
+          ctx.moveTo(snakePart.x, snakePart.y + 8);
+          ctx.lineTo(snakePart.x - 3, snakePart.y + 6);
+          ctx.lineTo(snakePart.x - 3, snakePart.y + 10);
+          ctx.closePath();
+          ctx.fill();
+        }
+
+        // Draw feet for the second and penultimate parts
+        if (index === 1 || index === totalParts - 2) {
+          ctx.fillStyle = FEET_COLOUR;
+          ctx.strokeStyle = SNAKE_BORDER_COLOUR;
+
+          // Left foot
+          ctx.beginPath();
+          ctx.ellipse(snakePart.x, snakePart.y + 5, 3, 2, 0, 0, 2 * Math.PI);
+          ctx.fill();
+          ctx.stroke();
+
+          // Right foot
+          ctx.beginPath();
+          ctx.ellipse(snakePart.x + 10, snakePart.y + 5, 3, 2, 0, 0, 2 * Math.PI);
+          ctx.fill();
+          ctx.stroke();
+
+          // Toes
+          ctx.strokeStyle = SNAKE_BORDER_COLOUR;
+          ctx.lineWidth = 0.5;
+
+          // Left foot toes
+          for (let i = 0; i < 3; i++) {
+            ctx.beginPath();
+            ctx.moveTo(snakePart.x - 2, snakePart.y + 4 + i);
+            ctx.lineTo(snakePart.x - 4, snakePart.y + 4 + i);
+            ctx.stroke();
+          }
+
+          // Right foot toes
+          for (let i = 0; i < 3; i++) {
+            ctx.beginPath();
+            ctx.moveTo(snakePart.x + 12, snakePart.y + 4 + i);
+            ctx.lineTo(snakePart.x + 14, snakePart.y + 4 + i);
+            ctx.stroke();
+          }
+
+          ctx.lineWidth = 1;
+        }
+      }
+
+      /**
+       * Changes the vertical and horizontal velocity of the snake according to the
+       * key that was pressed.
+       * The direction cannot be switched to the opposite direction, to prevent the snake
+       * from reversing
+       * For example if the the direction is 'right' it cannot become 'left'
+       * @param { object } event - The keydown event
+       */
+      function changeDirection(event) {
+        // If the game is not active, don't process keys
+        if (!gameActive) return;
+
+        const LEFT_KEY = 37;
+        const RIGHT_KEY = 39;
+        const UP_KEY = 38;
+        const DOWN_KEY = 40;
+
+        /**
+         * Prevent the snake from reversing
+         * Example scenario:
+         * Snake is moving to the right. User presses down and immediately left
+         * and the snake immediately changes direction without taking a step down first
+         */
+        if (changingDirection) return;
+
+        changingDirection = true;
+        
+        const keyPressed = event.keyCode;
+
+        const goingUp = dy === -10;
+        const goingDown = dy === 10;
+        const goingRight = dx === 10;
+        const goingLeft = dx === -10;
+
+        if (keyPressed === LEFT_KEY && !goingRight) {
+          dx = -10;
+          dy = 0;
+        }
+        
+        if (keyPressed === UP_KEY && !goingDown) {
+          dx = 0;
+          dy = -10;
+        }
+        
+        if (keyPressed === RIGHT_KEY && !goingLeft) {
+          dx = 10;
+          dy = 0;
+        }
+        
+        if (keyPressed === DOWN_KEY && !goingUp) {
+          dx = 0;
+          dy = 10;
+        }
+      }
+
+      // Start game
+      main();
+      // Create the first food location
+      createFood();
+      // Call changeDirection whenever a key is pressed
+      document.addEventListener("keydown", changeDirection);
+
+    </script>
+  </body>
+</html>
